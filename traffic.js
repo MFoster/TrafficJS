@@ -1,4 +1,4 @@
-(function(root){
+(function(root, dom){
 
 var BaseClass = function(){
     this.initialize.apply(this, arguments);
@@ -75,6 +75,81 @@ var BaseCollection = Backbone.Collection.extend({
 
 });
 
+
+
+var FormDelegate = EventDispatcher.extend({
+    
+    initialize : function(element) {
+    
+        this.element = dom(element);
+        
+        this.element.delegate("form", "submit", this.handleSubmit.bind(this));
+     
+    },
+    
+    getData : function(form) {
+        var data = {};
+        
+        for(var i = 0, len = form.elements.length; i < len; i++) {
+            var item = form.elements[i], name = item.name, type = item.type, value = false, radioValue = false;
+            
+            if (type == "checkbox"){
+                if(item.checked) {
+                    value = item.value || item.checked;
+                }
+                else if(item.hasAttribute("data-unchecked-value")){
+                    value = item.getAttribute("data-unchecked-value");
+                }
+                else{
+                    continue;
+                }
+            }
+            else {
+                value = item.value;
+            }
+            
+            if (type == "radio"){    
+            	if (item.checked){
+	            	radioValue = item.value;
+	            	if(data[name] == undefined){
+		                data[name] = radioValue;
+		            }
+                }
+            	continue;
+            }
+            if(name == "" || name == undefined || name == "undefined" || name == false || 
+              (type == "text" && value == "" && item.hasAttribute("data-unset"))) {
+                continue;
+            }
+            if(data[name] == undefined){
+                data[name] = value;
+            }
+            else if(typeof data[name] == "object" && data[name].length){
+                data[name].push(value);
+            }
+            else if(data[name]){
+                var oldValue = data[name];
+                data[name] = [];
+                data[name].push(oldValue);
+                data[name].push(value);
+            }
+        }        
+        return data;
+    },
+
+    handleSubmit : function(e){
+                
+        var form = e.target || e.srcElement;
+        
+        var data = this.getData(form);
+        
+        this.trigger("submit", {data : data, target : this, event : e, form : form });
+
+        return false;
+    }
+    
+});
+
 var Serializer = BaseClass.extend({
     
     serialize : function(data){
@@ -132,44 +207,49 @@ var PHPPostJsonSerializer = JsonSerializer.extend({
     
 });
 
-var HttpConnection = EventDispatcher.extend({
-    requestQueue : [],
-    transactionFlag : false,
-    
+var ConnectionPool = EventDispatcher.extend({
     options : {
-        synchronous : true
+        method : "post"
     },
     initialize : function(options){
         this.options = _.extend(this.options, options);    //http method, timeout
     },
-    sendRequest : function(request){
-        if(this.options.synchronous == false){
-            request.send();
-        }
-        else if(this.options.synchronous && this.transactionFlag == false){
-            this.transactionFlag = true;
-            request.on("complete", this.handleRequestComplete, this);
-            request.send();
-            
-        }
-        else if(this.options.synchronous && this.transactionFlag){
-            this.requestQueue.push(request);
-        }
+    send : function(connection){
+    
+        this.trigger("send", { target : connection });
+        
+        connection.send();
+        
+        this.trigger("sent", { target : connection });
+    
     },
-    handleRequestComplete : function(xhr){
-        this.transactionFlag = false;
-        if(this.requestQueue.length > 0){
-            var request = this.requestQueue.shift();
-            console.log("hitting the queue like it's no thang %o", request);
-            this.sendRequest(request);
-        }  
+    
+    createConnection : function(url, data){
+        if(url.search(/^ws/) > -1){
+            return this.createSocket(url, data);
+        }
+        else{
+            return this.createRequest(url, data);
+        }
+        
     },
-    createRequest : function(url, method, data){
-        var request = new HttpRequest(url, method, data);
+    
+    createRequest : function(url, data){
+        var request = new HttpRequest(url, this.options.method, data);
                 
-        this.trigger("create", request);
+        this.trigger("create", { target : request, type: "xhr" });
         
         return request;
+    },
+    
+    createSocket : function(url, data){
+    
+        var socket = new root.WebSocket(url);
+        
+        this.trigger("create", { target : socket, type: "web" })
+        
+        return socket;
+        
     }    
 
 
@@ -344,7 +424,7 @@ var BackboneRequest = HttpRequest.extend({
 });
 
 
-root.WebSocket = EventDispatcher.extend({
+var Socket = EventDispatcher.extend({
     
     serializer : new JsonSerializer(),
     
@@ -354,7 +434,9 @@ root.WebSocket = EventDispatcher.extend({
     
     queue : [],
     
-    processDelay : 30,
+    processDelay : 100,
+    
+    processTimer : false,
     
     initialize : function(url, data){
         this.setUrl(url);
@@ -367,7 +449,7 @@ root.WebSocket = EventDispatcher.extend({
         if(!this.ready && !this.destroyed){
             this.queue.push(data);
             this.getSocket();
-            return false;
+            return true;
         }
         else if(this.destroyed){
             return false;
@@ -385,7 +467,7 @@ root.WebSocket = EventDispatcher.extend({
     
     handleSocketOpen : function(evt){
         this.ready = true;
-        if(this.socket.readyState == 1){
+        if(this.socket.readyState === 1){
             this.trigger("connection", evt);
             this.processQueue();
         }
@@ -399,14 +481,17 @@ root.WebSocket = EventDispatcher.extend({
         this.destroy();
     },
     handleSocketMessage : function(evt){
+        
         var data = this.unserialize(evt.data);
+        
         this.trigger("message", data, evt);
         this.trigger("success", data, evt);
     },
     handleSocketError : function(evt){
-        this.destroy();
+        
         this.trigger("failure", evt);
         this.trigger("error", evt);  
+        this.destroy(); 
     },
     destroy : function(){
         this.socket.onopen = null;
@@ -416,6 +501,9 @@ root.WebSocket = EventDispatcher.extend({
         this.off();  
         this.socket.close();
         this.destroyed = true;
+    },
+    open : function(){
+        return this.getSocket();  
     },
     close : function(){
         this.destroy();  
@@ -431,18 +519,22 @@ root.WebSocket = EventDispatcher.extend({
     },
     processQueue : function(){
     
-        var self = this;
+        if(this.destroyed){
+            return false;
+        }
         
-        setTimeout(function(){
-            
-            if(self.queue.length > 0){
-                var data = self.queue.pop();
-                self.send(data);
-                self.processQueue();
-            }
+        if(this.ready && this.queue.length > 0){
+            var data = this.queue.pop();
+            this.send(data);
+        } 
+        else if(!this.ready && this.queue.length > 0){
+            //the socket isn't ready yet but it has a queue, wait longer
+            clearTimeout(this.processTimer);
+            this.processTimer = setTimeout(this.processQueue, this.processDelay);
+        }
         
-        }, this.processDelay);
-        
+        return true;
+                
     },
     
     getSocket : function(){
@@ -489,7 +581,8 @@ root.BaseModel       = BaseModel;
 root.BaseCollection  = BaseCollection;
 root.EventDispatcher = EventDispatcher;
 root.HttpRequest     = HttpRequest;
-root.HttpConnection  = HttpConnection;
+root.ConnectionPool  = ConnectionPool;
 root.BackboneRequest = BackboneRequest;
-
-})(window.Traffic = {});
+root.FormDelegate    = FormDelegate;
+root.WebSocket       = Socket;
+})(window.Traffic = {}, window.jQuery);
