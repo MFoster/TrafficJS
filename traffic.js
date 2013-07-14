@@ -244,7 +244,7 @@ var ConnectionPool = EventDispatcher.extend({
     
     createSocket : function(url, data){
     
-        var socket = new root.WebSocket(url);
+        var socket = new Socket(url);
         
         this.trigger("create", { target : socket, type: "web" })
         
