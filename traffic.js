@@ -75,16 +75,36 @@ var BaseCollection = Backbone.Collection.extend({
 
 });
 
+var View = Backbone.View.extend({
+        
+    initialize : function(config){
+        this.template = config.template;
+    },
+    render: function() {
+        this.$el.html(this.template({ collection: this.collection || [], model: (this.model ? this.model.attributes : {} )}));
+        return this;
+    }
+    
+});
 
 
 var FormDelegate = EventDispatcher.extend({
+    
+    expand : false,
+    
     
     initialize : function(element) {
     
         this.element = dom(element);
         
-        this.element.delegate("form", "submit", this.handleSubmit.bind(this));
+        this.element.on("submit", "form", this.handleSubmit.bind(this));
      
+    },
+    
+    setExpand : function(bool){
+        
+        this.expand = bool;
+        
     },
     
     getData : function(form) {
@@ -136,12 +156,45 @@ var FormDelegate = EventDispatcher.extend({
         }        
         return data;
     },
-
+    
+    expandKeys : function(struct){
+      var expanded = {};
+      
+      for(var key in struct){
+          var keys = key.match(/[^\[\]]+/gi);
+          this.traverseKeys(keys, expanded, struct[key]);
+      }
+      
+      return expanded;
+        
+    },
+    
+    traverseKeys : function(keys, struct, finalValue){
+        
+        var key = keys.shift();
+        
+        var obj = struct[key] || {};
+        
+        struct[key] = obj;
+        
+        if(keys.length > 0){
+            return this.traverseKeys(keys, obj, finalValue);
+        }
+        else{
+            struct[key] = finalValue;
+            return struct;
+        }        
+    },
+    
     handleSubmit : function(e){
                 
         var form = e.target || e.srcElement;
         
         var data = this.getData(form);
+        
+        if(this.expand){
+            data = this.expandKeys(data);
+        }
         
         this.trigger("submit", {data : data, target : this, event : e, form : form });
 
@@ -263,23 +316,33 @@ var HttpRequest = EventDispatcher.extend({
     
     queue : [],
     
-    headers : { 
-           // 'X-XmlHttpRequest' : 'Bridge',
-            //'Content-Type': "application/x-www-form-urlencoded"
-    },
+    httpMethod : "GET",
+    
+    headers : { },
     
     serializer : new JsonSerializer(),
     
+    serializerMap : {
+        "json" : JsonSerializer,
+        "php"  : PHPPostJsonSerializer,
+        "plain": Serializer
+    },
+    
     initialize : function(url, method, data){
         this.setUrl(url);
-        this.setHttpMethod(method);
-        this.setData(data);    
+        if(method)
+            this.setHttpMethod(method);
+        if(data)
+            this.setData(data);    
     },
     setUrl : function(url){
         this.url = url;
     },
     setHttpMethod : function(method){
         this.httpMethod = method;
+        if("post" == method.toLowerCase()){
+            this.headers["Content-Type"] = "application/x-www-form-urlencoded";
+        }
     },
     setData : function(data){
         this.data = data;
@@ -301,7 +364,8 @@ var HttpRequest = EventDispatcher.extend({
     },
     applyHeaders : function(xhr){
         for(var key in this.headers){
-            xhr.setRequestHeader(key, this.headers[key]);
+            var val = this.headers[key];
+            xhr.setRequestHeader(key, val);
         }
         return xhr;
     },
@@ -325,8 +389,7 @@ var HttpRequest = EventDispatcher.extend({
         var state = this.stateArr[xhr.readyState];
         try{
             if(state == "complete"){
-                    clearTimeout(xhr.timeout);
-                    this.transactionFlag = false;                                        
+                    clearTimeout(xhr.timeout);                                        
             }                       
             this.trigger(state, xhr);
             if(state == "complete" && this.isSuccess(xhr.status))
@@ -351,29 +414,19 @@ var HttpRequest = EventDispatcher.extend({
     
     destroy : function(){
         this.off();
-        this.destroyXHR();  
-    },
-    
-    destroyXHR : function(){
-        this.xhr.onreadystatechange = null;
-        delete this.xhr;
     },
     
     send : function(data){
         if(data){
             this.setData(data);
         }
-        if(this.transactionFlag){
-            var state = this.getState();
-            this.queue.push(state);
-        }
-        else{
-            var str = this.serialize();
-            this.transactionFlag = true;
-            this.setXHR(this.createXHR());
-            this.xhr.send(str);
-            this.xhr.timeout = setTimeout(_.bind(this.handleTimeout, this, this.xhr), this.timeoutDelay);
-        }
+        var str = this.serialize();
+        
+        var xhr = this.createXHR();
+        
+        xhr.send(str);
+        
+        
     },
     
     handleTimeout : function(xhr){
@@ -382,6 +435,18 @@ var HttpRequest = EventDispatcher.extend({
         this.trigger("failure", xhr);
         this.trigger("timeout", xhr);
         
+    },
+    
+    setSerializer : function(ser){
+        
+        if(typeof ser == "string"){
+            this.serializer = new this.serializerMap[ser]();
+        }
+        else{
+            this.serializer = ser;
+        }
+    
+        return this;  
     },
     
     serialize : function(){
@@ -395,6 +460,17 @@ var HttpRequest = EventDispatcher.extend({
     },
     
     createXHR : function(){
+        var xhr = this.createRawXHR();
+        
+        xhr.onreadystatechange = _.bind(this.handleStateChange, this, xhr);
+        xhr.open(this.getHttpMethod(), this.getUrl(), true);
+        xhr.timeout = setTimeout(_.bind(this.handleTimeout, this, xhr), this.timeoutDelay);
+        this.applyHeaders(xhr);
+        
+        return xhr;
+    },
+    
+    createRawXHR : function(){
         try{
             return new XMLHttpRequest();
         }
@@ -418,10 +494,50 @@ var BackboneRequest = HttpRequest.extend({
     },
     
     setMethod : function(method){
+        console.log("method inside setMethod %s", method);
         this.setHttpMethod(this.methodMap[method]);   
     }
 
 });
+
+var SymfonyRequest = BackboneRequest.extend({
+    
+    serializer : new PHPPostJsonSerializer(),
+    
+    token : null,
+    
+    prefix : null,
+    
+    tokenName : "_token",
+    
+    setPrefix : function(pref){
+        this.prefix = pref;
+    },
+    
+    setToken : function(tok){
+        this.token = tok;
+    },
+    
+    getToken : function(){
+        return this.token;
+    },
+    
+    serialize : function(){
+        var data = this.getData();
+        var pref = this.prefix;
+        
+        data[this.tokenName] = this.getToken();
+        
+        var obj = {};
+        
+        obj[pref] = data;
+        
+        return this.serializer.serialize(obj);
+        
+    }
+    
+    
+})
 
 
 var Socket = EventDispatcher.extend({
@@ -574,15 +690,18 @@ var Socket = EventDispatcher.extend({
 
 });
 
+root.PHPPostJsonSerializer = PHPPostJsonSerializer;
 root.Serializer      = Serializer;
 root.JsonSerializer  = JsonSerializer;
 root.BaseClass       = BaseClass;
-root.BaseModel       = BaseModel;
-root.BaseCollection  = BaseCollection;
+root.Model           = BaseModel;
+root.Collection      = BaseCollection;
+root.View            = View;
 root.EventDispatcher = EventDispatcher;
 root.HttpRequest     = HttpRequest;
 root.ConnectionPool  = ConnectionPool;
 root.BackboneRequest = BackboneRequest;
 root.FormDelegate    = FormDelegate;
 root.WebSocket       = Socket;
+root.SymfonyRequest  = SymfonyRequest;
 })(window.Traffic = {}, window.jQuery);
