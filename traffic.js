@@ -1,5 +1,15 @@
 (function(root, dom){
 
+if(!_.capitalize){
+_.mixin({
+  'capitalize': function(string) {
+    return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+  }
+});
+  
+}
+
+
 var BaseClass = function(){
     this.initialize.apply(this, arguments);
 };
@@ -26,9 +36,99 @@ var EventDispatcher = BaseClass.extend({
 
 _.extend(EventDispatcher.prototype, Backbone.Events);
 
+var sync = function(method, model, options){
+        
+    this.request.setMethod(method);
+    if(model.toJSON){
+        this.request.setData(model.toJSON());
+    }
+    else{
+        this.request.setData(model);
+    }
+    
+    if(options && options.success){
+        this.request.once("success", options.success);
+    }
+    
+    if(options && options.error){
+        this.request.once("failure", options.error);
+    }
+    
+    return this.request.send();
+}
+
 var BaseModel = Backbone.Model.extend({
 
     request : false,
+    set: function(key, val, options) {
+      var attr, attrs, unset, changes, silent, changing, prev, current;
+      if (key == null) return this;
+
+      // Handle both `"key", value` and `{key: value}` -style arguments.
+      if (typeof key === 'object') {
+        attrs = key;
+        options = val;
+      } else {
+        (attrs = {})[key] = val;
+      }
+
+      options || (options = {});
+
+      // Run validation.
+      if (!this._validate(attrs, options)) return false;
+
+      // Extract attributes and options.
+      unset           = options.unset;
+      silent          = options.silent;
+      changes         = [];
+      changing        = this._changing;
+      this._changing  = true;
+
+      if (!changing) {
+        this._previousAttributes = _.clone(this.attributes);
+        this.changed = {};
+      }
+      current = this.attributes, prev = this._previousAttributes;
+
+      // Check for changes of `id`.
+      if (this.idAttribute in attrs) this.id = attrs[this.idAttribute];
+
+      // For each `set` attribute, update or delete the current value.
+      for (attr in attrs) {
+        val = attrs[attr];
+        if (!_.isEqual(current[attr], val)) changes.push(attr);
+        if (!_.isEqual(prev[attr], val)) {
+          this.changed[attr] = val;
+        } else {
+          delete this.changed[attr];
+        }
+        unset ? delete current[attr] : (this['set' + _.capitalize(attr)] ? this['set' + _.capitalize(attr)](val) : current[attr] = val);
+      }
+
+      // Trigger all relevant attribute changes.
+      if (!silent) {
+        if (changes.length) this._pending = true;
+        for (var i = 0, l = changes.length; i < l; i++) {
+          this.trigger('change:' + changes[i], this, current[changes[i]], options);
+        }
+      }
+
+      // You might be wondering why there's a `while` loop here. Changes can
+      // be recursively nested within `"change"` events.
+      if (changing) return this;
+      if (!silent) {
+        while (this._pending) {
+          this._pending = false;
+          this.trigger('change', this, options);
+        }
+      }
+      this._pending = false;
+      this._changing = false;
+      return this;
+    },
+    getId : function(){
+        return this.id || this.cid;
+    },
     
     setRequest : function(request){
         this.request = request;
@@ -39,14 +139,7 @@ var BaseModel = Backbone.Model.extend({
     },
     
     sync : function(method, model, options){
-        
-        this.request.setMethod(method);
-        this.request.setData(this.attributes);
-        
-        this.request.once("success", options.success);
-        this.request.once("failure", options.error);
-        
-        this.request.send();
+        return sync.apply(this, arguments)
     }
 
 });
@@ -55,6 +148,14 @@ var BaseCollection = Backbone.Collection.extend({
     
     request : false,
     
+    model : BaseModel,
+    
+    initialize : function(models, options){
+        if(options.request){
+            this.setRequest(options.request)
+        }
+    },
+    
     setRequest : function(request){
         this.request = request;
     },
@@ -62,28 +163,34 @@ var BaseCollection = Backbone.Collection.extend({
         return this.request;
     },
     
-    sync : function(method, coll, options){
+    sync : function(method, model, options){
+        return sync.apply(this, arguments)
+    },
+    
+    _prepareModel : function(attrs, options){
+    
+        var model = Backbone.Collection.prototype._prepareModel.apply(this, arguments);    
+        model.setRequest(this.request.clone());
         
-        this.request.setMethod(method);
-        this.request.setData(coll.toJSON());
-        
-        this.request.once("success", options.success);
-        this.request.once("failure", options.error);
-        
-        this.request.send();
+        return model;
     }
 
 });
 
 var View = Backbone.View.extend({
-        
+    
+    deferDelay : 50,
+    
     initialize : function(config){
         this.template = config.template;
     },
-    render: function() {
+    render : function() {
         this.$el.html(this.template({ collection: this.collection || [], model: (this.model ? this.model.attributes : {} )}));
         return this;
-    }
+    },
+    defered : function(){
+      return _.debounce(this.render.bind(this), this.deferDelay);
+    } 
     
 });
 
@@ -92,6 +199,7 @@ var FormDelegate = EventDispatcher.extend({
     
     expand : false,
     
+    formPrefix : false,
     
     initialize : function(element) {
     
@@ -117,11 +225,8 @@ var FormDelegate = EventDispatcher.extend({
                 if(item.checked) {
                     value = item.value || item.checked;
                 }
-                else if(item.hasAttribute("data-unchecked-value")){
-                    value = item.getAttribute("data-unchecked-value");
-                }
                 else{
-                    continue;
+                    value = 0;
                 }
             }
             else {
@@ -134,7 +239,7 @@ var FormDelegate = EventDispatcher.extend({
 	            	if(data[name] == undefined){
 		                data[name] = radioValue;
 		            }
-                }
+              }
             	continue;
             }
             if(name == "" || name == undefined || name == "undefined" || name == false || 
@@ -155,6 +260,35 @@ var FormDelegate = EventDispatcher.extend({
             }
         }        
         return data;
+    },
+    
+    setFormPrefix : function(prefix){
+        this.formPrefix = prefix;    
+    },
+    
+    applyModel : function(model){
+        var forms = this.element.find("form");
+        
+        var self = this;
+        
+        _.each(forms, function(form){
+            for(var key in model.attributes){
+                var formKey = (self.formPrefix ? self.formPrefix + "[" + key + "]" : key);
+                
+                if(form[formKey]){
+                    var element = form[formKey];
+                    var type = element.getAttribute("type");
+                    
+                    if("checkbox" == type.toLowerCase()){
+                        form[formKey].checked = model.get(key); //you better be a boolean!
+                    }
+                    else{
+                        form[formKey].value = model.get(key);
+                    }
+                }
+            }
+        });
+            
     },
     
     expandKeys : function(struct){
@@ -335,12 +469,24 @@ var HttpRequest = EventDispatcher.extend({
         if(data)
             this.setData(data);    
     },
+    clone : function(){
+        var cls = this.constructor;        
+        var clone = new cls(this.getUrl(), this.getHttpMethod(), this.getData());
+        clone.setSerializer(this.serializer);
+        clone.setHeaders(this.headers);
+        return clone;  
+    },
+    
+    getCloneClass : function(){
+      return HttpRequest;
+    },
+    
     setUrl : function(url){
         this.url = url;
     },
     setHttpMethod : function(method){
         this.httpMethod = method;
-        if("post" == method.toLowerCase()){
+        if("post" == method.toLowerCase() || "put" == method.toLowerCase()){
             this.headers["Content-Type"] = "application/x-www-form-urlencoded";
         }
     },
@@ -369,45 +515,33 @@ var HttpRequest = EventDispatcher.extend({
         }
         return xhr;
     },
-    setXHR : function(xhr){
-        //if(this.xhr){
-        //    this.destroyXHR();
-        //}
-        this.xhr = xhr;
-        this.applyHeaders(xhr);
-        this.xhr.onreadystatechange = _.bind(this.handleStateChange, this, xhr);
-        this.xhr.open(this.getHttpMethod(), this.getUrl(), true);
-    },
-    prepareXHR : function(xhr){
-    
-        this.applyHeaders(xhr);
-        xhr.onreadystatechange = _.bind(this.handleStateChange, this, xhr);
-        xhr.open(this.getHttpMethod(), this.getUrl(), true);
-        return xhr;
-    },
     handleStateChange : function(xhr){
         var state = this.stateArr[xhr.readyState];
         try{
             if(state == "complete"){
-                    clearTimeout(xhr.timeout);                                        
+                clearTimeout(xhr.timeout);                                        
             }                       
             this.trigger(state, xhr);
-            if(state == "complete" && this.isSuccess(xhr.status))
-                    this.triggerSuccess(xhr);
-            else if(state == "complete" && !this.isSuccess(xhr.status))
-                    this.trigger("failure", xhr);                     
+            if(state == "complete" && this.isSuccess(xhr.status)){
+                this.triggerState("success", xhr);
+            }
+            else if(state == "complete" && !this.isSuccess(xhr.status)){
+                this.triggerState("failure", xhr);
+            }
+                                     
         }
         catch(e){
                 this.trigger("exception", xhr, e);
         }
     },
-    triggerSuccess : function(xhr){
-    
+    triggerState : function(state, xhr){
+
         xhr.responseData = this.unserialize(xhr.responseText);
-        this.trigger("success", xhr.responseData, xhr);
+
+        this.trigger(state, xhr.responseData, xhr, this);
         
     },
-    
+
     isSuccess : function(status){
         return (status >= 200 && status < 300);
     },
@@ -424,9 +558,17 @@ var HttpRequest = EventDispatcher.extend({
         
         var xhr = this.createXHR();
         
-        xhr.send(str);
+        var url = this.getUrl();
         
+        if("GET" == this.getHttpMethod().toUpperCase() && str.length > 0){
+          url = this.getUrl() + "?" + str;
+        }
         
+        xhr.open(this.getHttpMethod(), url, true);
+        
+        xhr.send(str); 
+        
+        return this;       
     },
     
     handleTimeout : function(xhr){
@@ -458,12 +600,18 @@ var HttpRequest = EventDispatcher.extend({
     unserialize : function(str){
         return this.serializer.unserialize(str);
     },
-    
+    then : function(cb){
+        this.once("success", cb);  
+        return this;
+    },
+    otherwise : function(cb){
+        this.once("failure", cb);
+        return this;
+    },
     createXHR : function(){
         var xhr = this.createRawXHR();
         
         xhr.onreadystatechange = _.bind(this.handleStateChange, this, xhr);
-        xhr.open(this.getHttpMethod(), this.getUrl(), true);
         xhr.timeout = setTimeout(_.bind(this.handleTimeout, this, xhr), this.timeoutDelay);
         this.applyHeaders(xhr);
         
@@ -485,12 +633,118 @@ var HttpRequest = EventDispatcher.extend({
     }
 });
 
+var HttpQueue = EventDispatcher.extend({
+  
+  requests : [],
+  
+  responses : [],
+  
+  initialize : function(requests){
+    
+    if(requests){
+      this.requests = requests;
+    }
+    this.completeHandle = this.handleComplete.bind(this);
+    
+  },
+  
+  setRequests : function(requests){
+    this.requests = requests;
+    return this;
+  },
+  
+  add : function(request){
+    this.requests.push(request);
+    return this;
+  },
+  
+  start : function(){
+    if(this.started){
+      return false;
+    }
+    
+    var request = this.requests.shift();    
+    request.once("success", this.completeHandle);
+    request.send();
+    return this;
+    
+  },
+  
+  handleComplete : function(response, xhr, request){
+    
+    if(this.requests.length > 0){
+      var request = this.requests.shift();
+      this.responses.push(response);
+      request.once("success", this.completeHandle);
+      request.send();
+    }
+    else{
+      var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
+      this.trigger("complete", evt);
+      this.started = false;
+      this.responses = [];
+    }
+    
+  },
+  
+  then : function(cb){
+    this.on("complete", cb);
+  }
+  
+  
+  
+  
+});
+
+var HttpRace = HttpQueue.extend({
+  
+  count : 0,
+  
+  start : function(){
+  
+    if(this.started){
+      return false;
+    }
+  
+    this.started = true;
+    this.finishLine = this.requests.length;
+    this.count = 0;
+    while(this.requests.length > 0){
+      var request = this.requests.shift();
+      request.once("success", this.completeHandle);
+      request.send();
+    }
+    
+    return this;
+    
+  },
+  
+  handleComplete : function(response, xhr, request){
+    
+    this.count++;
+    
+    this.responses.push(response);
+    
+    if(this.finishLine <= this.count){
+      var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
+      this.trigger("complete", evt);
+      this.started = false;
+    }
+    
+  }
+    
+});
+
 var BackboneRequest = HttpRequest.extend({
     methodMap : {
         'read' : 'GET',
         'create' : 'POST',
         'update' : 'PUT',
         'delete' : 'DELETE'
+    },
+    
+    getCloneClass : function(){
+      return BackboneRequest;
     },
     
     setMethod : function(method){
@@ -510,6 +764,10 @@ var SymfonyRequest = BackboneRequest.extend({
     
     tokenName : "_token",
     
+    getCloneClass : function(){
+      return SymfonyRequest;
+    },
+    
     setPrefix : function(pref){
         this.prefix = pref;
     },
@@ -522,11 +780,26 @@ var SymfonyRequest = BackboneRequest.extend({
         return this.token;
     },
     
+    clone : function(){
+        var clone = BackboneRequest.prototype.clone.apply(this, arguments);
+        if(this.prefix){
+          clone.setPrefix(this.prefix);
+        }
+        
+        if(this.token){
+          clone.setToken(this.token);
+        }
+        
+        return clone;  
+    },
+    
     serialize : function(){
         var data = this.getData();
         var pref = this.prefix;
         
-        data[this.tokenName] = this.getToken();
+        if(this.token && !data[this.tokenName]){
+          data[this.tokenName] = this.getToken();
+        }
         
         var obj = {};
         
@@ -699,6 +972,8 @@ root.Collection      = BaseCollection;
 root.View            = View;
 root.EventDispatcher = EventDispatcher;
 root.HttpRequest     = HttpRequest;
+root.HttpQueue       = HttpQueue;
+root.HttpRace        = HttpRace;
 root.ConnectionPool  = ConnectionPool;
 root.BackboneRequest = BackboneRequest;
 root.FormDelegate    = FormDelegate;
