@@ -8,31 +8,13 @@ _.mixin({
 });
   
 }
-
-
-var BaseClass = function(){
-  this.initialize.apply(this, arguments);
-};
-
-BaseClass.extend = Backbone.Model.extend;
-
-BaseClass.prototype.initialize = function BaseClassConstructor(){};
-
-var EventDispatcher = BaseClass.extend({
-  initialize : function(){},
-  once : function(name, callback, context){
-    var self = this;
-    var wrap = function(){
-      callback.apply(context, arguments);
-      self.off(name, wrap);
-    }
-    this.on(name, wrap);
-  }
-
-});
-
-_.extend(EventDispatcher.prototype, Backbone.Events);
-
+/**
+ * Primary Traffic.sync method. This is what each class delegates to.
+ * Uses a request instance to handle communications.
+ *
+ * @param arg
+ * @return void
+ */
 var sync = function(method, model, options){
   this.request.setMethod(method);
   if(model.toJSON){
@@ -52,6 +34,30 @@ var sync = function(method, model, options){
   
   return this.request.send();
 }
+
+/**
+ * Generic class that simply calls it's own initialize method
+ */
+var BaseClass = function(){
+  this.initialize.apply(this, arguments);
+};
+
+//hijack's Backbone's extend method
+BaseClass.extend = Backbone.Model.extend;
+
+//Assigns a named function to the initialize method.  
+BaseClass.prototype.initialize = function BaseClassConstructor(){};
+
+/**
+ * Creates a separate reference
+ *
+ */
+var EventDispatcher = BaseClass.extend({
+
+});
+
+_.extend(EventDispatcher.prototype, Backbone.Events);
+
 
 var BaseModel = Backbone.Model.extend({
 
@@ -250,7 +256,12 @@ var FormDelegate = EventDispatcher.extend({
         data[name].push(oldValue);
         data[name].push(value);
       }
-    }    
+    }
+    
+    if(this.expand){
+      data = this.expandKeys(data);
+    }
+    
     return data;
   },
   /**
@@ -349,10 +360,6 @@ var FormDelegate = EventDispatcher.extend({
     var form = e.target || e.srcElement;
     
     var data = this.getData(form);
-    
-    if(this.expand){
-      data = this.expandKeys(data);
-    }
     
     this.trigger("submit", {data : data, target : this, event : e, form : form });
 
@@ -674,6 +681,8 @@ var HttpRequest = EventDispatcher.extend({
     
     xhr.open(this.getHttpMethod(), url, true);
     
+    this.applyHeaders(xhr);
+    
     xhr.send(str); 
     
     return this;     
@@ -743,7 +752,7 @@ var HttpRequest = EventDispatcher.extend({
   otherwise : function(cb){
     this.once("failure", cb);
     return this;
-  }
+  },
   /**
    * Gets an XHR and attaches the request's listeners
    * to the native XHR callback.  Also invokes
@@ -756,7 +765,6 @@ var HttpRequest = EventDispatcher.extend({
     
     xhr.onreadystatechange = _.bind(this.handleStateChange, this, xhr);
     xhr.timeout = setTimeout(_.bind(this.handleTimeout, this, xhr), this.timeoutDelay);
-    this.applyHeaders(xhr);
     
     return xhr;
   },
@@ -788,59 +796,50 @@ var HttpQueue = EventDispatcher.extend({
   
   initialize : function(requests){
   
-  if(requests){
-    this.requests = requests;
-  }
-  this.completeHandle = this.handleComplete.bind(this);
+    if(requests){
+      this.requests = requests;
+    }
+    this.completeHandle = this.handleComplete.bind(this);
   
   },
-  
   setRequests : function(requests){
-  this.requests = requests;
-  return this;
+    this.requests = requests;
+    return this;
   },
-  
   add : function(request){
-  this.requests.push(request);
-  return this;
+    this.requests.push(request);
+    return this;
   },
-  
   start : function(){
-  if(this.started){
-    return false;
-  }
-  
-  var request = this.requests.shift();  
-  request.once("success", this.completeHandle);
-  request.send();
-  return this;
-  
+    if(this.started){
+      return false;
+    }
+    
+    var request = this.requests.shift();  
+    request.once("success", this.completeHandle);
+    request.send();
+    return this;
+    
   },
   
   handleComplete : function(response, xhr, request){
-  
-  if(this.requests.length > 0){
-    var request = this.requests.shift();
-    this.responses.push(response);
-    request.once("success", this.completeHandle);
-    request.send();
-  }
-  else{
-    var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
-    this.trigger("complete", evt);
-    this.started = false;
-    this.responses = [];
-  }
-  
+    
+    if(this.requests.length > 0){
+      var request = this.requests.shift();
+      this.responses.push(response);
+      request.once("success", this.completeHandle);
+      request.send();
+    }
+    else{
+      var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
+      this.trigger("complete", evt);
+      this.started = false;
+      this.responses = [];
+    }  
   },
-  
   then : function(cb){
-  this.on("complete", cb);
+    this.on("complete", cb);
   }
-  
-  
-  
-  
 });
 
 var HttpRace = HttpQueue.extend({
@@ -849,34 +848,34 @@ var HttpRace = HttpQueue.extend({
   
   start : function(){
   
-  if(this.started){
-    return false;
-  }
+    if(this.started){
+      return false;
+    }
   
-  this.started = true;
-  this.finishLine = this.requests.length;
-  this.count = 0;
-  while(this.requests.length > 0){
-    var request = this.requests.shift();
-    request.once("success", this.completeHandle);
-    request.send();
-  }
-  
-  return this;
+    this.started = true;
+    this.finishLine = this.requests.length;
+    this.count = 0;
+    while(this.requests.length > 0){
+      var request = this.requests.shift();
+      request.once("success", this.completeHandle);
+      request.send();
+    }
+    
+    return this;
   
   },
   
   handleComplete : function(response, xhr, request){
-  
-  this.count++;
-  
-  this.responses.push(response);
-  
-  if(this.finishLine <= this.count){
-    var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
-    this.trigger("complete", evt);
-    this.started = false;
-  }
+    
+    this.count++;
+    
+    this.responses.push(response);
+    
+    if(this.finishLine <= this.count){
+      var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
+      this.trigger("complete", evt);
+      this.started = false;
+    }
   
   }
   
@@ -914,32 +913,25 @@ var SymfonyRequest = BackboneRequest.extend({
   getCloneClass : function(){
     return SymfonyRequest;
   },
-  
   setPrefix : function(pref){
     this.prefix = pref;
   },
-  
   setToken : function(tok){
     this.token = tok;
   },
-  
   getToken : function(){
     return this.token;
   },
-  
   clone : function(){
     var clone = BackboneRequest.prototype.clone.apply(this, arguments);
     if(this.prefix){
       clone.setPrefix(this.prefix);
     }
-    
     if(this.token){
       clone.setToken(this.token);
     }
-    
     return clone;  
   },
-  
   serialize : function(){
     var data = this.getData();
     var pref = this.prefix;
@@ -954,11 +946,8 @@ var SymfonyRequest = BackboneRequest.extend({
     
     return this.serializer.serialize(obj);
     
-  }
-  
-  
-})
-
+  }  
+});
 
 var Socket = EventDispatcher.extend({
   
@@ -1000,7 +989,6 @@ var Socket = EventDispatcher.extend({
     return (this.getSocket()).send(str);
     
   },
-  
   handleSocketOpen : function(evt){
     this.ready = true;
     if(this.socket.readyState === 1){
@@ -1017,14 +1005,11 @@ var Socket = EventDispatcher.extend({
     this.destroy();
   },
   handleSocketMessage : function(evt){
-    
     var data = this.unserialize(evt.data);
-    
     this.trigger("message", data, evt);
     this.trigger("success", data, evt);
   },
   handleSocketError : function(evt){
-    
     this.trigger("failure", evt);
     this.trigger("error", evt);  
     this.destroy(); 
@@ -1048,17 +1033,13 @@ var Socket = EventDispatcher.extend({
     this.ready = false;
   },
   resume : function(){
-    
     this.ready = true;
     this.processQueue();  
-    
   },
   processQueue : function(){
-  
     if(this.destroyed){
       return false;
     }
-    
     if(this.ready && this.queue.length > 0){
       var data = this.queue.pop();
       this.send(data);
@@ -1068,7 +1049,6 @@ var Socket = EventDispatcher.extend({
       clearTimeout(this.processTimer);
       this.processTimer = setTimeout(this.processQueue, this.processDelay);
     }
-    
     return true;
         
   },
@@ -1127,4 +1107,5 @@ root.FormDelegate          = FormDelegate;
 root.WebSocket             = Socket;
 root.SymfonyRequest        = SymfonyRequest;
 root.SymfonyFormDelegate   = SymfonyFormDelegate;
+root.PersistanceCollection = PersistanceCollection;
 })(window.Traffic = {}, window.jQuery);
