@@ -57,6 +57,39 @@ var request = new Traffic.HttpRequest("/info.api");
 request.send().then(handleSuccess).otherwise(handlefailure);
 ```
 
+HttpRace and HttpQueue
+----------------------
+These are two convienence classes to help handle the quirky
+workflow of having a collection of requests and something
+that requires all of their responses to operate.
+
+The main difference between Race and Queue is that race sends all of the requests at once, so
+the responses are not in order, this has the advantage of being overall faster for the entire set.
+Queue on the other hand will only send one at a time, and only sends the next if the previous one
+was successful.  Neither will fire the complete event if any of the requests in the set fail.
+
+```javascript
+var queue = new Traffic.HttpRace();
+  
+var seeds = [110,109,108,107,106,105,104,102,103,100,101,99,98,96,97,94,95,93,92,91,90,89,88,87,86,85,84,83,82,81];
+
+var collection = new Backbone.Collection();
+
+_.each(seeds, function(id){
+  var req = new Traffic.HttpRequest("/info.api");
+  req.setData({ id : id });
+  queue.add(req);
+});
+    
+queue.start();
+
+queue.on("complete", operate);
+
+function operate(evt){
+
+}
+```
+
 Serializers
 -----------
 
@@ -104,32 +137,37 @@ Backbone Integration
 --------------------
 
 Traffic JS is heavily integrated with Backbone and extends both 
-Backbone.Model and Backbone.Collection to operate using an HttpRequest object.
-This also provides an easy way to perform pessimistic or optimistic model loading.
+Backbone.Model and Backbone.Collection to operate using an BackboneRequest object.
 
-#### Pessimistic 
+The BackboneRequest class provides an easy translation from backbone's create/remove methods
+to the HTTP verbs in typical rest architecture.  
+
+Let's take a look at a few example of how to work Traffic and Backbone such that you can achieve
+various techniques of pessimistic and optimistic model additions and changes.
+
+#### Pessimistic Creation with Request
 ```javascript
 var request = new Traffic.HttpRequest("/info.api", "POST");
+
+var form = new Traffic.FormDelegate("#form-container");
+
+form.on("submit", handleSubmit);
+
+request.on("success", handleSuccess);
 
 function handleSuccess(response){
   collection.add(response);
 }
 
-request.on("success", handleSuccess);
-
-request.send(info);
+function handleSubmit(evt){
+  request.send(evt.data);
+}
 ```
-
-BackboneRequest
----------------
-
-There is a subclass for smoother use with a Backbone Model.  The major feature
-is the setMethod function which maps the backbone methods, such as create and remove
-to HTTP Methods such as POST and DELETE.
 
 This is a more optimistic approach, in which you can add or update the model to the collection
 for display before the server has validated the information.
 
+#### Optimistic Update with Request and Model
 ```javascript
 var request = new Traffic.BackboneRequest("/info.api");
 
@@ -146,6 +184,36 @@ form.on("submit", function(evt){
 })
 ```
 
+#### Optimistic Creation with Collection
+```javascript
+var request = new Traffic.BackboneRequest("/info.api");
+
+var collection = new Traffic.Collection([], { request : request });
+
+var form = new Traffic.FormDelegate("#form-container");
+
+form.on("submit", function(evt){
+  collection.add(evt.data);
+});
+```
+
+The request object will appropriately respond to a non 200 response code
+and fire the failure event.  Backbone Collection's create method with the "wait"
+option will hold off on adding to the collection until the request
+has fired it's success event.
+
+#### Pessimistic Creation with Collection
+```javascript
+var request = new Traffic.BackboneRequest("/info.api");
+
+var collection = new Traffic.Collection([], { request : request });
+
+var form = new Traffic.FormDelegate("#form-container");
+
+form.on("submit", function(evt){
+  collection.create(evt.data, { wait : true});
+});
+```
 
 
 
