@@ -1,0 +1,36 @@
+{
+  "name": "TrafficJS",
+  "version": "2.0.0",
+  "description": "Ajax Communication Library",
+  "main": "traffic.js",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {
+    "jquery": "~1.8.3",
+    "requirejs": "~2.1.9",
+    "mocha": "~1.14.0",
+    "chai": "~1.8.1"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "mocha "
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/MFoster/TrafficJS.git"
+  },
+  "keywords": [
+    "ajax",
+    "object",
+    "oriented",
+    "event",
+    "driven"
+  ],
+  "author": "Matt Foster",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/MFoster/TrafficJS/issues"
+  },
+  "homepage": "https://github.com/MFoster/TrafficJS"
+}

@@ -2,7 +2,7 @@
  * Serializes and unserializes JSON notation objects.
  *
  */
-define(["base"], function(Serializer){
+define(["./base"], function(Serializer){
 
 	return Serializer.extend({
 	  serialize : function(data){

@@ -1,0 +1,34 @@
+{
+  "name": "TrafficJS",
+  "version": "2.0.0",
+  "homepage": "https://github.com/MFoster/TrafficJS",
+  "description": "Ajax Communication Library",
+  "keywords": [
+    "ajax",
+    "object",
+    "oriented",
+    "event",
+    "dispatcher"
+  ],
+  "authors": [
+    "Matt Foster"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "vendor",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "backbone-amd": "~1.1.0",
+    "jquery": "~2.0.3",
+    "underscore-amd": "~1.5.2",
+    "requirejs": "~2.1.9"
+  },
+  "devDependencies": {
+    "requirejs": "~2.1.9"
+  }
+}
