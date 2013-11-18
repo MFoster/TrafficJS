@@ -1,4 +1,4 @@
-define(["queue"], function(HttpQueue){
+define(["httprequest"], function(HttpRequest){
 	return HttpRequest.extend({
 	  methodMap : {
 	    'read' : 'GET',
@@ -6,11 +6,7 @@ define(["queue"], function(HttpQueue){
 	    'update' : 'PUT',
 	    'delete' : 'DELETE'
 	  },
-	  
-	  getCloneClass : function(){
-	    return BackboneRequest;
-	  },
-	  
+	
 	  setMethod : function(method){
 	    console.log("method inside setMethod %s", method);
 	    this.setHttpMethod(this.methodMap[method]);   

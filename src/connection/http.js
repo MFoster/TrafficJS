@@ -4,7 +4,8 @@
  * @param arg
  * @return void
  */
-define(["../eventdispatcher"], function(EventDispatcher){
+define(["src/eventdispatcher", "src/serializer/base", "src/serializer/json", "src/serializer/bracket"], 
+function(EventDispatcher, Serializer, JsonSerializer, BracketSerializer){
 
   return EventDispatcher.extend({
     
@@ -22,7 +23,7 @@ define(["../eventdispatcher"], function(EventDispatcher){
     
     serializerMap : {
       "json" : JsonSerializer,
-      "php"  : PHPPostJsonSerializer,
+      "bracket"  : BracketSerializer,
       "plain": Serializer
     },
     /**
@@ -111,22 +112,18 @@ define(["../eventdispatcher"], function(EventDispatcher){
      */
     handleStateChange : function(xhr){
       var state = this.stateArr[xhr.readyState];
-      try{
-        if(state == "complete"){
-          clearTimeout(xhr.timeout);                    
-        }             
-        this.trigger(state, xhr);
-        if(state == "complete" && this.isSuccess(xhr.status)){
-          this.triggerState("success", xhr);
-        }
-        else if(state == "complete" && !this.isSuccess(xhr.status)){
-          this.triggerState("failure", xhr);
-        }
-                     
+
+      if(state == "complete"){
+        clearTimeout(xhr.timeout);                    
+      }             
+      this.trigger(state, xhr);
+      if(state == "complete" && this.isSuccess(xhr.status)){
+        this.triggerState("success", xhr);
       }
-      catch(e){
-          this.trigger("exception", xhr, e);
+      else if(state == "complete" && !this.isSuccess(xhr.status)){
+        this.triggerState("failure", xhr);
       }
+
     },
     /**
      * Attempts to unserialize the XHR's responseText

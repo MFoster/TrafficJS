@@ -1,4 +1,4 @@
-define(["backbone"], function(Backbone){
+define(["backbone", "sync"], function(Backbone, sync){
 	return Backbone.Model.extend({
 
 	  request : false,

@@ -25,7 +25,6 @@ describe("Basic Test", function(){
 			var serial = new BracketSerial();
 			var str = serial.serialize({ derp : true, complex : { proper: false }});
 			expect(str).to.eql("derp=true&complex[proper]=false");
-			console.log(str);
 			done();
 		})
 	})
