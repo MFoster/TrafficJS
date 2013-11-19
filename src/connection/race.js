@@ -1,4 +1,4 @@
-define(["queue"], function(HttpQueue){
+define(["./queue"], function(HttpQueue){
 
 	return HttpQueue.extend({
 	  
@@ -24,21 +24,13 @@ define(["queue"], function(HttpQueue){
 	  },
 	  
 	  handleComplete : function(response, xhr, request){
-	    
 	    this.count++;
-	    
 	    this.responses.push(response);
-	    
 	    if(this.finishLine <= this.count){
 	      var evt = { target : this, responses: this.responses, lastResponse : response, lastXhr : xhr, lastRequest : request, };
 	      this.trigger("complete", evt);
 	      this.started = false;
 	    }
-	  
 	  }
-	  
 	});
-
-
-
-}
+});

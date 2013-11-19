@@ -2,7 +2,7 @@
  * Factory class for creating HttpRequest/Socket objects.
  *
  */
-define(["../eventdispatcher", "http", "socket"], function(EventDispatcher, HttpRequest, Socket){
+define(["../eventdispatcher", "httprequest", "socket"], function(EventDispatcher, HttpRequest, Socket){
 	return EventDispatcher.extend({
 	  options : {
 	    method : "post"

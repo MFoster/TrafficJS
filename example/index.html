@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Example Document</title>
+</head>
+<body>
+	
+
+	<script type="text/javascript" src="../vendor/requirejs/require.js"></script>
+	<script type="text/javascript" src="../config/dev.js"></script>
+	<script type="text/javascript">
+		require(["src/traffic"], function(Traffic){
+			console.log("Traffic Object %o", Traffic);
+		});
+	</script>
+</body>
+</html>

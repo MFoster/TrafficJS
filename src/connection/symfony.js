@@ -1,4 +1,4 @@
-define(["./backbone", "../serializer/bracket"], function(Request, Serializer){
+define(["./backbone", "src/serializer/bracket"], function(Request, Serializer){
 
 	return Request.extend({
   

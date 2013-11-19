@@ -1,4 +1,4 @@
-define(["backbone"], function(Backbone){
+define(["backbone", "src/model/base"], function(Backbone, BaseModel){
 	return Backbone.Collection.extend({
 	  request : false,
 	  model : BaseModel,

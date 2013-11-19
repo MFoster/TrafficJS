@@ -1,4 +1,4 @@
-define(["../eventdispatcher", "../serializer/json"], function(EventDispatcher, JsonSerializer){
+define(["src/eventdispatcher", "src/serializer/json"], function(EventDispatcher, JsonSerializer){
 
 	return EventDispatcher.extend({
 	  

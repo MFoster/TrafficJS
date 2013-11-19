@@ -5,7 +5,7 @@
  * primitives.
  *
  */
-define(["../base"], function(BaseClass){
+define(["src/base"], function(BaseClass){
 	return BaseClass.extend({
 	  
 	  serialize : function(data){
