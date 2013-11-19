@@ -5,7 +5,7 @@
  * and then respond to the client with JSON.
  *
  */
- define(["./json"], function(JsonSerializer){
+ define(["src/serializer/json"], function(JsonSerializer){
   return JsonSerializer.extend({
  
     serialize : function(data){

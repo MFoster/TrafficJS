@@ -6,7 +6,7 @@ require.config({
 		"underscore" : "vendor/underscore-amd/underscore",
 		"jquery" : "vendor/jquery/jquery",
 		"sync" : "src/sync",
-		"httprequest" : "src/connection/http",
+		"httprequest" : "src/connection/http-test",
 		"socket" : "src/connection/socket"
 	}
 });

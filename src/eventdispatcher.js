@@ -1,4 +1,4 @@
-define(["./base"], function(BaseClass){
+define(["src/base"], function(BaseClass){
 
 	/**
 	 * Creates a separate reference

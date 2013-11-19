@@ -1,5 +1,6 @@
 # Traffic JS
 
+[![Build Status](https://travis-ci.org/MFoster/TrafficJS.png?branch=amd)](https://travis-ci.org/MFoster/TrafficJS)
 ## Ajax Communication Library
 
 Traffic JS provides an object oriented and class structure approach to dealing with 

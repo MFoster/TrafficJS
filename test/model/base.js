@@ -30,10 +30,15 @@ describe("how a model can interact with a test connection", function(){
 	it("should set and send a request to server", function(done){
 		r(["src/model/base", "src/connection/backbone"], function(BaseModel, HttpRequest){
 			var model = new BaseModel();
+			var request = new HttpRequest("/info.api");
+			request.setResponse({ success : true });
+			model.setRequest(request);
 			model.set("name", "John");
+
+			model.save();
 			done();
 		});
-	});
+	})
 
 
 });
