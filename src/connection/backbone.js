@@ -8,7 +8,6 @@ define(["httprequest"], function(HttpRequest){
 	  },
 	
 	  setMethod : function(method){
-	    console.log("method inside setMethod %s", method);
 	    this.setHttpMethod(this.methodMap[method]);   
 	  }
 

@@ -14,7 +14,7 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "mocha "
+    "test": "mocha test/; mocha test/connection; mocha test/model; mocha test/serializer"
   },
   "repository": {
     "type": "git",
