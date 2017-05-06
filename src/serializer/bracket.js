@@ -5,37 +5,35 @@
  * and then respond to the client with JSON.
  *
  */
- define(["src/serializer/json"], function(JsonSerializer){
+define(["src/serializer/json"], function (JsonSerializer) {
   return JsonSerializer.extend({
- 
-    serialize : function(data){
+
+    serialize: function (data) {
       var str = this._serialize(data);
       str = str.replace(/&+/gi, '&').replace(/^&/, '');
-      return str;   
+      return str;
     },
-    _serialize : function(obj, ancestor){
-      var str = "", item;
-      for(var key in obj){
+    _serialize: function (obj, ancestor) {
+      var str = "",
+        item;
+      for (var key in obj) {
         item = obj[key];
-        
-        if(typeof item == "object"){
-          if(ancestor){
+
+        if (typeof item == "object") {
+          if (ancestor) {
             str += "&" + this._serialize(item, ancestor + "[" + key + "]");
-          }
-          else{
+          } else {
             str += "&" + this._serialize(item, key);
           }
-        }
-        else if(ancestor){
-          str +=  "&" + ancestor + "[" + encodeURIComponent(key)  + "]=" + encodeURIComponent(item);
-        }
-        else{
+        } else if (ancestor) {
+          str += "&" + ancestor + "[" + encodeURIComponent(key) + "]=" + encodeURIComponent(item);
+        } else {
           str += "&" + encodeURIComponent(key) + "=" + encodeURIComponent(item);
         }
-        
+
       }
       return str;
     }
-  
+
   });
 });
