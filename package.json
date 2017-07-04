@@ -6,7 +6,7 @@
     "lodash": "^4.17.4",
     "webpack": "^2.6.0",
     "traffic-dispatch": "1.0.2",
-    "traffic-serialize": "1.0.6"
+    "traffic-serialize": "1.0.7"
   },
   "devDependencies": {
     "babel-cli": "^6.24.1",
