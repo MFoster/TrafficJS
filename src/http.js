@@ -22,7 +22,7 @@ export default class HttpRequest extends Broadcaster {
         this.httpMethod = "GET";
         this.headers = {};
         this.queue = [];
-        this.serializer = new JsonSerializer();
+        //this.serializer = new JsonSerializer();
         this.setUrl(url);
         if (method)
             this.setHttpMethod(method);

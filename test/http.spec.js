@@ -1,8 +1,6 @@
 import HttpRequest from "../src/http";
-import Broadcaster from "traffic-dispatch";
 import sinon from "sinon";
 import { assert } from "chai";
-import { QueryParamSerializer, JsonSerializer } from "traffic-serialize";
 
 describe("HttpRequest", ()=>{
     it("should be able to set a content type header to application/json", ()=>{
@@ -23,5 +21,6 @@ describe("HttpRequest", ()=>{
 
         assert.equal(request.getData(), fixture);
     });
+    
 
 });

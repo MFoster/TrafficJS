@@ -1,3 +1,4 @@
+const path = require("path");
 
 module.exports = {
     entry: "./src/broadcaster.js",
@@ -7,12 +8,11 @@ module.exports = {
             {
                 test: /\.js$/,
                 exclude: /node_modules/,
-                //include: /node_modules\/traffic-.*\.js$/,
                 use: ["babel-loader"]
             },
             {
-                test: /src.+\.js$/,
-                exclude: /node_modules/,
+                test: /\.js$/,
+                include: path.resolve("src/"),
                 use: ["istanbul-instrumenter-loader", "babel-loader"]
             }
 		]
